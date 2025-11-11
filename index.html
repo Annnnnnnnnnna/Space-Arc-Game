@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8" />
+  <title>Space Arc</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: #000;
+    }
+    canvas {
+      display: block;
+    }
+
+    #ui {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      font-family: system-ui, sans-serif;
+      font-size: 18px;
+      color: #fff;
+      text-shadow: 0 0 5px #000;
+      z-index: 10;
+    }
+
+    #gameOverScreen {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      background: rgba(0, 0, 0, 0.7);
+      color: #fff;
+      font-family: system-ui, sans-serif;
+      z-index: 20;
+    }
+
+    #gameOverScreen button {
+      margin-top: 16px;
+      padding: 10px 20px;
+      font-size: 18px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <div id="ui">
+    Очки: <span id="score">0</span>
+  </div>
+
+  <div id="gameOverScreen">
+    <h1>Гру закінчено</h1>
+    <p>Ваш результат: <span id="finalScore">0</span></p>
+    <button id="restartBtn">Грати ще раз</button>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+
+    const scoreEl = document.getElementById('score');
+    const gameOverScreen = document.getElementById('gameOverScreen');
+    const finalScoreEl = document.getElementById('finalScore');
+    const restartBtn = document.getElementById('restartBtn');
+
+    // --- Робимо гру на весь екран ---
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // --- Завантаження зображень ---
+    const bgImg = new Image();
+    const playerImg = new Image();
+    const meteorImg = new Image();
+    const bonusImg = new Image();
+
+    bgImg.src = 'Arc.png';
+    playerImg.src = 'k.png';
+    meteorImg.src = 'p.png';
+    bonusImg.src = 'u.png';
+
+    let imagesLoaded = 0;
+    const totalImages = 4;
+
+    function onImageLoad() {
+      imagesLoaded++;
+      if (imagesLoaded === totalImages) {
+        startGame();
+      }
+    }
+
+    bgImg.onload = onImageLoad;
+    playerImg.onload = onImageLoad;
+    meteorImg.onload = onImageLoad;
+    bonusImg.onload = onImageLoad;
+
+    // --- Стан гри ---
+    let keys = {};
+    let player;
+    let meteorites = [];
+    let bonuses = [];
+    let lastTime = 0;
+    let meteorSpawnTimer = 0;
+    let bonusSpawnTimer = 0;
+    let score = 0;
+    let gameOver = false;
+
+    const METEOR_SPAWN_INTERVAL = 900;  // мс
+    const BONUS_SPAWN_INTERVAL = 1700;  // мс
+
+    window.addEventListener('keydown', (e) => {
+      keys[e.key] = true;
+      // щоб не прокручувалась сторінка на стрілках / пробіл
+      if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', ' '].includes(e.key)) {
+        e.preventDefault();
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      keys[e.key] = false;
+    });
+
+    function resetGame() {
+      score = 0;
+      meteorites = [];
+      bonuses = [];
+      gameOver = false;
+
+      const playerWidth = 80;
+      const playerHeight = 80;
+
+      player = {
+        x: canvas.width / 2 - playerWidth / 2,
+        y: canvas.height - playerHeight - 40,
+        width: playerWidth,
+        height: playerHeight,
+        speed: 400 // px/сек
+      };
+
+      scoreEl.textContent = score;
+      gameOverScreen.style.display = 'none';
+
+      lastTime = performance.now();
+      requestAnimationFrame(gameLoop);
+    }
+
+    restartBtn.addEventListener('click', resetGame);
+
+    function startGame() {
+      resetGame();
+    }
+
+    function spawnMeteor() {
+      const size = 60;
+      const x = Math.random() * (canvas.width - size);
+      const speed = 150 + Math.random() * 200; // px/сек
+      meteorites.push({
+        x,
+        y: -size,
+        width: size,
+        height: size,
+        speed
+      });
+    }
+
+    function spawnBonus() {
+      const size = 40;
+      const x = Math.random() * (canvas.width - size);
+      const speed = 120 + Math.random() * 150;
+      bonuses.push({
+        x,
+        y: -size,
+        width: size,
+        height: size,
+        speed
+      });
+    }
+
+    function update(dt) {
+      if (gameOver) return;
+
+      // Рух гравця
+      if (keys['ArrowLeft'] || keys['a'] || keys['A']) {
+        player.x -= player.speed * dt;
+      }
+      if (keys['ArrowRight'] || keys['d'] || keys['D']) {
+        player.x += player.speed * dt;
+      }
+      if (keys['ArrowUp'] || keys['w'] || keys['W']) {
+        player.y -= player.speed * dt;
+      }
+      if (keys['ArrowDown'] || keys['s'] || keys['S']) {
+        player.y += player.speed * dt;
+      }
+
+      // Обмеження в межах екрану
+      if (player.x < 0) player.x = 0;
+      if (player.x + player.width > canvas.width) player.x = canvas.width - player.width;
+      if (player.y < 0) player.y = 0;
+      if (player.y + player.height > canvas.height) player.y = canvas.height - player.height;
+
+      // Спавн метеоритів / бонусів
+      meteorSpawnTimer += dt * 1000;
+      bonusSpawnTimer += dt * 1000;
+
+      if (meteorSpawnTimer > METEOR_SPAWN_INTERVAL) {
+        spawnMeteor();
+        meteorSpawnTimer = 0;
+      }
+
+      if (bonusSpawnTimer > BONUS_SPAWN_INTERVAL) {
+        spawnBonus();
+        bonusSpawnTimer = 0;
+      }
+
+      // Оновлення метеоритів
+      meteorites.forEach(m => {
+        m.y += m.speed * dt;
+      });
+      meteorites = meteorites.filter(m => m.y < canvas.height + m.height);
+
+      // Оновлення бонусів
+      bonuses.forEach(b => {
+        b.y += b.speed * dt;
+      });
+      bonuses = bonuses.filter(b => b.y < canvas.height + b.height);
+
+      // Перевірка зіткнень
+      meteorites.forEach(m => {
+        if (isColliding(player, m)) {
+          endGame();
+        }
+      });
+
+      bonuses = bonuses.filter(b => {
+        if (isColliding(player, b)) {
+          score += 10;
+          scoreEl.textContent = score;
+          return false; // прибрати з масиву
+        }
+        return true;
+      });
+    }
+
+    function isColliding(a, b) {
+      return (
+        a.x < b.x + b.width &&
+        a.x + a.width > b.x &&
+        a.y < b.y + b.height &&
+        a.y + a.height > b.y
+      );
+    }
+
+    function draw() {
+      // фон на весь екран
+      if (bgImg.complete) {
+        const scaleX = canvas.width / bgImg.width;
+        const scaleY = canvas.height / bgImg.height;
+        const scale = Math.max(scaleX, scaleY);
+        const bgWidth = bgImg.width * scale;
+        const bgHeight = bgImg.height * scale;
+        const bgX = (canvas.width - bgWidth) / 2;
+        const bgY = (canvas.height - bgHeight) / 2;
+        ctx.drawImage(bgImg, bgX, bgY, bgWidth, bgHeight);
+      } else {
+        ctx.fillStyle = 'black';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+
+      // гравець
+      if (playerImg.complete) {
+        ctx.drawImage(playerImg, player.x, player.y, player.width, player.height);
+      } else {
+        ctx.fillStyle = 'white';
+        ctx.fillRect(player.x, player.y, player.width, player.height);
+      }
+
+      // метеорити
+      meteorites.forEach(m => {
+        if (meteorImg.complete) {
+          ctx.drawImage(meteorImg, m.x, m.y, m.width, m.height);
+        } else {
+          ctx.fillStyle = 'red';
+          ctx.fillRect(m.x, m.y, m.width, m.height);
+        }
+      });
+
+      // бонуси
+      bonuses.forEach(b => {
+        if (bonusImg.complete) {
+          ctx.drawImage(bonusImg, b.x, b.y, b.width, b.height);
+        } else {
+          ctx.fillStyle = 'yellow';
+          ctx.fillRect(b.x, b.y, b.width, b.height);
+        }
+      });
+    }
+
+    function gameLoop(timestamp) {
+      if (gameOver) return;
+
+      const dt = (timestamp - lastTime) / 1000; // delta time в секундах
+      lastTime = timestamp;
+
+      update(dt);
+      draw();
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    function endGame() {
+      gameOver = true;
+      finalScoreEl.textContent = score;
+      gameOverScreen.style.display = 'flex';
+    }
+  </script>
+</body>
+</html>
+
