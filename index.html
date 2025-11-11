@@ -12,9 +12,8 @@
     }
     canvas {
       display: block;
-      cursor: none; /* керування мишкою по кораблю */
+      cursor: none;
     }
-
     #ui {
       position: fixed;
       top: 10px;
@@ -25,7 +24,6 @@
       text-shadow: 0 0 5px #000;
       z-index: 10;
     }
-
     #gameOverScreen,
     #startScreen {
       position: fixed;
@@ -42,11 +40,9 @@
       padding: 20px;
       box-sizing: border-box;
     }
-
     #startScreen {
-      display: flex; /* стартовий екран видно одразу */
+      display: flex;
     }
-
     #gameOverScreen button,
     #startScreen button {
       margin-top: 16px;
@@ -56,12 +52,10 @@
       border-radius: 8px;
       cursor: pointer;
     }
-
     #startScreen h1 {
       font-size: 48px;
       margin-bottom: 10px;
     }
-
     #startScreen ul {
       text-align: left;
       max-width: 500px;
@@ -75,7 +69,6 @@
     Bonus: <span id="score">0</span> / 20
   </div>
 
-  <!-- Стартовий екран з інструкцією -->
   <div id="startScreen">
     <h1>Space Arc</h1>
     <p>Instructions:</p>
@@ -90,7 +83,6 @@
     <button id="startBtn">Start Game</button>
   </div>
 
-  <!-- Екран кінця гри -->
   <div id="gameOverScreen">
     <h1 id="gameOverTitle">Game Over</h1>
     <p>Bonuses collected: <span id="finalScore">0</span></p>
@@ -106,14 +98,11 @@
     const finalScoreEl = document.getElementById('finalScore');
     const restartBtn = document.getElementById('restartBtn');
     const gameOverTitle = document.getElementById('gameOverTitle');
-
     const startScreen = document.getElementById('startScreen');
     const startBtn = document.getElementById('startBtn');
 
-    // Game state: 'start', 'playing', 'victoryGlow', 'gameOver'
-    let state = 'start';
+    let state = 'start'; // start, playing, victoryGlow, gameOver
 
-    // Fullscreen canvas
     function resizeCanvas() {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
@@ -121,76 +110,47 @@
     window.addEventListener('resize', resizeCanvas);
     resizeCanvas();
 
-    // Images
+    // Load images
     const bgImg = new Image();
     const playerImg = new Image();
-    const meteorImg = new Image();
+    const meteorImg1 = new Image();
+    const meteorImg2 = new Image(); // i.png
     const bonusImg = new Image();
 
     bgImg.src = 'Arc.png';
     playerImg.src = 'k.png';
-    meteorImg.src = 'p.png';
+    meteorImg1.src = 'p.png';
+    meteorImg2.src = 'i.png';
     bonusImg.src = 'u.png';
 
+    const allImages = [bgImg, playerImg, meteorImg1, meteorImg2, bonusImg];
     let imagesLoaded = 0;
-    const totalImages = 4;
 
-    function onImageLoad() {
+    allImages.forEach(img => img.onload = () => {
       imagesLoaded++;
-      if (imagesLoaded === totalImages) {
-        init();
-      }
-    }
+      if (imagesLoaded === allImages.length) init();
+    });
 
-    bgImg.onload = onImageLoad;
-    playerImg.onload = onImageLoad;
-    meteorImg.onload = onImageLoad;
-    bonusImg.onload = onImageLoad;
-
-    // Game data
-    let player = null;
-    let meteorites = [];
-    let bonuses = [];
-    let lastTime = 0;
-    let meteorSpawnTimer = 0;
-    let bonusSpawnTimer = 0;
+    let player, meteorites = [], bonuses = [];
+    let lastTime = 0, meteorSpawnTimer = 0, bonusSpawnTimer = 0;
     let collectedBonuses = 0;
 
-    const METEOR_SPAWN_INTERVAL = 650;   // частіше спавниться
+    const METEOR_SPAWN_INTERVAL = 600;   // faster spawn
     const BONUS_SPAWN_INTERVAL  = 1700;
-    const METEOR_ACCEL = 250;           // px/s^2
+    const METEOR_ACCEL = 400;            // faster acceleration
     const TARGET_BONUSES = 20;
 
     const keys = {};
+    const victoryGlow = { active: false, time: 0, duration: 1.2 };
 
-    // Victory glow data
-    let victoryGlow = {
-      active: false,
-      time: 0,
-      duration: 1.2 // seconds
-    };
+    window.addEventListener('keydown', e => keys[e.key] = true);
+    window.addEventListener('keyup', e => keys[e.key] = false);
 
-    window.addEventListener('keydown', (e) => {
-      keys[e.key] = true;
-      if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', ' '].includes(e.key)) {
-        e.preventDefault();
-      }
-    });
-
-    window.addEventListener('keyup', (e) => {
-      keys[e.key] = false;
-    });
-
-    // Mouse control
-    canvas.addEventListener('mousemove', (e) => {
+    canvas.addEventListener('mousemove', e => {
       if (!player || (state !== 'playing' && state !== 'victoryGlow')) return;
       const rect = canvas.getBoundingClientRect();
-      const mouseX = e.clientX - rect.left;
-      const mouseY = e.clientY - rect.top;
-
-      player.x = mouseX - player.width / 2;
-      player.y = mouseY - player.height / 2;
-
+      player.x = e.clientX - rect.left - player.width / 2;
+      player.y = e.clientY - rect.top - player.height / 2;
       clampPlayerToScreen();
     });
 
@@ -215,59 +175,42 @@
       victoryGlow.time = 0;
       state = 'playing';
 
-      const playerWidth = 130;
-      const playerHeight = 130;
-
-      player = {
-        x: canvas.width / 2 - playerWidth / 2,
-        y: canvas.height - playerHeight - 40,
-        width: playerWidth,
-        height: playerHeight,
-        speed: 400 // for keyboard control
-      };
+      const playerWidth = 130, playerHeight = 130;
+      player = { x: canvas.width / 2 - playerWidth / 2, y: canvas.height - playerHeight - 40, width: playerWidth, height: playerHeight, speed: 400 };
 
       scoreEl.textContent = collectedBonuses;
       meteorSpawnTimer = 0;
       bonusSpawnTimer = 0;
     }
 
-    startBtn.addEventListener('click', () => {
+    startBtn.onclick = () => {
       resetGame();
       startScreen.style.display = 'none';
       gameOverScreen.style.display = 'none';
-    });
+    };
 
-    restartBtn.addEventListener('click', () => {
+    restartBtn.onclick = () => {
       resetGame();
       gameOverScreen.style.display = 'none';
-    });
+    };
 
     function spawnMeteor() {
       const size = 70;
       const x = Math.random() * (canvas.width - size);
-      const baseSpeed = 180 + Math.random() * 220;
+      const baseSpeed = 250 + Math.random() * 280; // faster speed
+      const type = Math.random() < 0.5 ? meteorImg1 : meteorImg2; // random meteor type
       meteorites.push({
-        x,
-        y: -size,
-        width: size,
-        height: size,
-        speed: baseSpeed,
-        exploding: false,
-        explosionTime: 0
+        x, y: -size, width: size, height: size,
+        speed: baseSpeed, img: type,
+        exploding: false, explosionTime: 0
       });
     }
 
     function spawnBonus() {
       const size = 50;
       const x = Math.random() * (canvas.width - size);
-      const speed = 120 + Math.random() * 150;
-      bonuses.push({
-        x,
-        y: -size,
-        width: size,
-        height: size,
-        speed
-      });
+      const speed = 150 + Math.random() * 180;
+      bonuses.push({ x, y: -size, width: size, height: size, speed });
     }
 
     function triggerMeteorExplosions() {
@@ -280,32 +223,13 @@
 
     function update(dt) {
       if (state === 'playing') {
-        // Keyboard controls (optional in addition to mouse)
-        if (keys['ArrowLeft'] || keys['a'] || keys['A']) {
-          player.x -= player.speed * dt;
-        }
-        if (keys['ArrowRight'] || keys['d'] || keys['D']) {
-          player.x += player.speed * dt;
-        }
-        if (keys['ArrowUp'] || keys['w'] || keys['W']) {
-          player.y -= player.speed * dt;
-        }
-        if (keys['ArrowDown'] || keys['s'] || keys['S']) {
-          player.y += player.speed * dt;
-        }
-
-        clampPlayerToScreen();
-
-        // Spawning meteors & bonuses
+        // spawn meteors more frequently, sometimes multiple
         meteorSpawnTimer += dt * 1000;
         bonusSpawnTimer += dt * 1000;
 
         if (meteorSpawnTimer > METEOR_SPAWN_INTERVAL) {
-          // Інколи спавнимо 2 метеорити, щоб їх було більше
-          const count = Math.random() < 0.4 ? 2 : 1;
-          for (let i = 0; i < count; i++) {
-            spawnMeteor();
-          }
+          const count = Math.random() < 0.5 ? 2 : 1;
+          for (let i = 0; i < count; i++) spawnMeteor();
           meteorSpawnTimer = 0;
         }
 
@@ -314,32 +238,19 @@
           bonusSpawnTimer = 0;
         }
 
-        // Update meteors with acceleration
+        // move meteors
         meteorites.forEach(m => {
           if (!m.exploding) {
             m.speed += METEOR_ACCEL * dt;
             m.y += m.speed * dt;
-          } else {
-            m.explosionTime += dt;
-          }
+          } else m.explosionTime += dt;
         });
 
-        // Remove meteors that left screen or finished exploding
         const EXPLOSION_DURATION = 0.35;
-        meteorites = meteorites.filter(m => {
-          if (m.exploding) {
-            return m.explosionTime < EXPLOSION_DURATION;
-          }
-          return m.y < canvas.height + m.height;
-        });
-
-        // Update bonuses
-        bonuses.forEach(b => {
-          b.y += b.speed * dt;
-        });
+        meteorites = meteorites.filter(m => m.exploding ? m.explosionTime < EXPLOSION_DURATION : m.y < canvas.height + m.height);
+        bonuses.forEach(b => b.y += b.speed * dt);
         bonuses = bonuses.filter(b => b.y < canvas.height + b.height);
 
-        // Collision with meteors
         for (let m of meteorites) {
           if (!m.exploding && isColliding(player, m)) {
             endGame(false);
@@ -347,152 +258,84 @@
           }
         }
 
-        // Collecting bonuses
         bonuses = bonuses.filter(b => {
           if (isColliding(player, b)) {
             collectedBonuses++;
             scoreEl.textContent = collectedBonuses;
-
-            // Destroy all meteors in explosions
             triggerMeteorExplosions();
-
-            // Check victory
-            if (collectedBonuses >= TARGET_BONUSES) {
-              endGame(true);
-            }
-
+            if (collectedBonuses >= TARGET_BONUSES) endGame(true);
             return false;
           }
           return true;
         });
       } else if (state === 'victoryGlow') {
-        // Під час сяйва — тільки далі крутимо анімацію вибухів метеоритів
         const EXPLOSION_DURATION = 0.35;
-        meteorites.forEach(m => {
-          if (m.exploding) {
-            m.explosionTime += dt;
-          }
-        });
-        meteorites = meteorites.filter(m => {
-          if (m.exploding) {
-            return m.explosionTime < EXPLOSION_DURATION;
-          }
-          return false;
-        });
+        meteorites.forEach(m => m.explosionTime += dt);
+        meteorites = meteorites.filter(m => m.explosionTime < EXPLOSION_DURATION);
       }
-      // 'start' і 'gameOver' — нічого не оновлюємо
     }
 
     function isColliding(a, b) {
-      return (
-        a.x < b.x + b.width &&
-        a.x + a.width > b.x &&
-        a.y < b.y + b.height &&
-        a.y + a.height > b.y
-      );
+      return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
     }
 
     function draw(dt) {
-      // Background
       if (bgImg.complete) {
-        const scaleX = canvas.width / bgImg.width;
-        const scaleY = canvas.height / bgImg.height;
-        const scale = Math.max(scaleX, scaleY);
-        const bgWidth = bgImg.width * scale;
-        const bgHeight = bgImg.height * scale;
-        const bgX = (canvas.width - bgWidth) / 2;
-        const bgY = (canvas.height - bgHeight) / 2;
-        ctx.drawImage(bgImg, bgX, bgY, bgWidth, bgHeight);
+        const scale = Math.max(canvas.width / bgImg.width, canvas.height / bgImg.height);
+        const w = bgImg.width * scale, h = bgImg.height * scale;
+        ctx.drawImage(bgImg, (canvas.width - w) / 2, (canvas.height - h) / 2, w, h);
       } else {
-        ctx.fillStyle = 'black';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = 'black'; ctx.fillRect(0, 0, canvas.width, canvas.height);
       }
 
-      // Player
-      if (player) {
-        if (playerImg.complete) {
-          ctx.drawImage(playerImg, player.x, player.y, player.width, player.height);
-        } else {
-          ctx.fillStyle = 'white';
-          ctx.fillRect(player.x, player.y, player.width, player.height);
-        }
-      }
+      if (player) ctx.drawImage(playerImg, player.x, player.y, player.width, player.height);
 
-      // Meteors
       const EXPLOSION_DURATION = 0.35;
       meteorites.forEach(m => {
-        if (!m.exploding) {
-          if (meteorImg.complete) {
-            ctx.drawImage(meteorImg, m.x, m.y, m.width, m.height);
-          } else {
-            ctx.fillStyle = 'red';
-            ctx.fillRect(m.x, m.y, m.width, m.height);
-          }
-        } else {
+        if (!m.exploding) ctx.drawImage(m.img, m.x, m.y, m.width, m.height);
+        else {
           const progress = Math.min(1, m.explosionTime / EXPLOSION_DURATION);
           drawExplosion(m.x, m.y, m.width, progress);
         }
       });
 
-      // Bonuses
-      bonuses.forEach(b => {
-        if (bonusImg.complete) {
-          ctx.drawImage(bonusImg, b.x, b.y, b.width, b.height);
-        } else {
-          ctx.fillStyle = 'yellow';
-          ctx.fillRect(b.x, b.y, b.width, b.height);
-        }
-      });
+      bonuses.forEach(b => ctx.drawImage(bonusImg, b.x, b.y, b.width, b.height));
 
-      // Victory glow overlay
-      if (state === 'victoryGlow' && victoryGlow.active) {
-        drawVictoryGlow(dt);
-      }
+      if (state === 'victoryGlow' && victoryGlow.active) drawVictoryGlow(dt);
     }
 
     function drawExplosion(x, y, baseSize, progress) {
-      const maxRadius = baseSize * 1.4;
+      const maxRadius = baseSize * 1.5;
       const radius = maxRadius * progress;
       const alpha = 1 - progress;
-
       ctx.save();
       ctx.globalAlpha = alpha;
-
       ctx.beginPath();
       ctx.arc(x + baseSize / 2, y + baseSize / 2, radius, 0, Math.PI * 2);
       ctx.fillStyle = 'orange';
       ctx.fill();
-
       ctx.beginPath();
       ctx.arc(x + baseSize / 2, y + baseSize / 2, radius * 0.5, 0, Math.PI * 2);
       ctx.fillStyle = 'yellow';
       ctx.fill();
-
       ctx.restore();
     }
 
     function drawVictoryGlow(dt) {
       victoryGlow.time += dt;
       const t = Math.min(1, victoryGlow.time / victoryGlow.duration);
-
-      // Центр сяйва — в районі гравця (якщо є), інакше по центру екрану
       const cx = player ? player.x + player.width / 2 : canvas.width / 2;
       const cy = player ? player.y + player.height / 2 : canvas.height / 2;
-      const maxR = Math.sqrt(canvas.width * canvas.width + canvas.height * canvas.height);
-
+      const maxR = Math.sqrt(canvas.width ** 2 + canvas.height ** 2);
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
       ctx.globalAlpha = 0.8 * t;
-
-      const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR);
-      gradient.addColorStop(0, 'rgba(255,255,255,1)');
-      gradient.addColorStop(1, 'rgba(255,255,255,0)');
-      ctx.fillStyle = gradient;
+      const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR);
+      grad.addColorStop(0, 'rgba(255,255,255,1)');
+      grad.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = grad;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-
       ctx.restore();
-
-      // Коли сяйво закінчилося — показуємо екран перемоги
       if (victoryGlow.time >= victoryGlow.duration) {
         victoryGlow.active = false;
         state = 'gameOver';
@@ -505,10 +348,8 @@
     function gameLoop(timestamp) {
       const dt = (timestamp - lastTime) / 1000;
       lastTime = timestamp;
-
       update(dt);
       draw(dt);
-
       requestAnimationFrame(gameLoop);
     }
 
